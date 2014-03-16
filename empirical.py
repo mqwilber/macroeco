@@ -35,6 +35,7 @@ from math import radians, cos, sin, asin, sqrt
 import itertools
 from copy import deepcopy
 from data import DataTable
+import pandas as pd
 
 
 class Patch:
@@ -277,7 +278,8 @@ class Patch:
 
 
 
-    def sar(self, div_cols, div_list, criteria, form='sar', output_N=False):
+    def sar(self, div_cols, div_list, criteria, form='sar', unique_areas=False,
+            output_N=False):
         '''
         Calculate an empirical species-area relationship given criteria.
 
@@ -294,6 +296,10 @@ class Patch:
         form : string
             'sar' or 'ear' for species or endemics area relationship. EAR is 
             relative to the subtable selected after criteria is applied.
+        unique_areas : bool
+            If True, only outputs unique areas and takes the average of species
+            in the non unique areas. If False, outputs all areas without
+            collapsing.  The full results remains unchanged by unique_areas
         output_N : bool
             Adds the column N to the output rec array which contains the
             average N for a given area.
@@ -371,10 +377,21 @@ class Patch:
             rec_sar = np.array(zip(mean_result, N_result, areas),
               dtype=[('items', np.float), ('N', np.float), ('area', np.float)])
 
+        if unique_areas: # We really should just completely switch to pandas...
+            temp_rec = pd.DataFrame(rec_sar)
+            temp_rec = temp_rec.groupby(['area']).mean().reset_index()
+            if output_N:
+                temp_rec = temp_rec[['items', 'N', 'area']] 
+            else:
+                temp_rec = temp_rec[['items', 'area']] 
+
+            rec_sar = temp_rec.to_records(index=False)
+
         return rec_sar, full_result
 
 
-    def universal_sar(self, div_cols, div_list, criteria, include_full=False):
+    def universal_sar(self, div_cols, div_list, criteria, include_full=False,
+            unique_areas=False):
         '''
         Calculates the empirical universal sar given criteria. The universal
         sar calculates the slope of the SAR and the ratio of N / S at all
@@ -401,6 +418,10 @@ class Patch:
             If include_full = True, the division (1,1) will be included if it
             was now already included. Else it will not be included.  (1,1) is
             equivalent to the full plot
+        unique_areas : bool
+            If True, only outputs unique areas and takes the average of species
+            in the non unique areas. If False, outputs all areas without
+            collapsing.  The full results remains unchanged by unique_areas
 
 
         Returns
@@ -427,7 +448,8 @@ class Patch:
                 div_list.insert(0, (1,1))
 
         # Run sar with the div_cols
-        sar = self.sar(div_cols, div_list, criteria, output_N=True)[0]
+        sar = self.sar(div_cols, div_list, criteria, output_N=True,
+                unique_areas=unique_areas)[0]
 
         # sort by area
         sar = np.sort(sar, order=['area'])[::-1]
